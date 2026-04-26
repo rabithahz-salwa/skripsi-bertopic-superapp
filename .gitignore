@@ -1,0 +1,46 @@
+# === Data files ===
+# Raw data terlalu besar untuk Git, di-regenerate dari script scraping
+data/
+
+# === Models ===
+# fasttext model untuk language detection (akan didownload terpisah)
+*.bin
+lid.176.bin
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.Python
+
+# === Virtual Environments ===
+# Just in case ada folder env di project (umumnya kita pake conda env, tapi defensive)
+venv/
+env/
+ENV/
+
+# === Jupyter Notebook ===
+.ipynb_checkpoints/
+
+# === IDE / Editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === OS ===
+# Windows-specific files
+Thumbs.db
+Desktop.ini
+
+# === Output / Generated ===
+# Folder buat hasil yang bisa di-regenerate
+output/
+results/
+*.log
+
+# === Sensitive ===
+.env
+*.key
+secrets.json
