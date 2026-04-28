@@ -44,3 +44,6 @@ results/
 .env
 *.key
 secrets.json
+
+# === External lexicons (download separately, see README) ===
+dictionaries/salsabila.csv
