@@ -417,3 +417,224 @@ def apply_normalization(
           f"median: {df['word_count_after'].median():.0f}, "
           f"max: {df['word_count_after'].max()}")
     return df
+
+
+# ==============================================================================
+# Stage 5: Slang Normalization
+# ==============================================================================
+
+# Indonesian standard words protected from Salsabila mis-replacement.
+# Identified via data-driven inspection of most-triggered slang mappings
+# in wondr by BNI review data (Top 30 frequency analysis). Each entry
+# below is a Salsabila mapping that corrupts standard Indonesian semantics
+# after slang-column preprocessing collapses repeated characters.
+#
+# Without this blocklist, e.g. "aplikasinya error" would become
+# "aplikasi dua duanya error" (catastrophic semantic corruption).
+INDONESIAN_PROTECTED_WORDS: set[str] = {
+    'apa',      # Salsabila: 'apaa' → 'diapa' (after collapse: 'apa' → 'diapa')
+    'nya',      # Salsabila: 'nyaa' → 'dua-duanya' → catastrophic
+    'sekali',   # Salsabila: 'sekalii' → 'sekali kali' (semantic shift)
+    'bener',    # Salsabila: 'benerr' → 'benar benar' (mis-reduplikasi)
+    'minta',    # Salsabila: 'mintaa' → 'meminta' (POS shift verb)
+    'bukan',    # Salsabila: 'bukann' → 'bukannya' (semantic shift negation)
+}
+
+
+def load_slang_dict(
+    salsabila_path: str,
+    banking_ext_path: str | None = None,
+    blocklist: set[str] | None = None,
+) -> dict:
+    """
+    Load Salsabila colloquial Indonesian lexicon and merge with banking
+    extension dictionary. Returns a slang→formal lookup dict.
+
+    Processing applied:
+    1. Pre-process slang keys with the same normalize_text() pipeline used
+       on review text. This ensures lookups match (e.g., 'eeeehhhh' in dict
+       becomes 'eehh', matching the collapsed form in cleaned reviews).
+    2. Replace hyphens in formal values with spaces (e.g., 'kata-katanya'
+       → 'kata katanya') since punctuation has been stripped from text.
+    3. Drop entries where slang or formal becomes empty after cleaning.
+    4. Drop "degrading reduplication mappings" where formal = slang × N
+       (e.g., 'baru' → 'baru baru'), which are artifacts of preprocessing.
+    5. Drop entries whose slang key is in `blocklist` — these are
+       Indonesian standard words that get mis-replaced after preprocessing
+       (e.g., 'apa' → 'diapa' from Salsabila entry 'apaa' → 'diapa').
+       Identified via data-driven inspection of most-triggered replacements.
+    6. Handle duplicate slang keys: prioritize Salsabila entries with
+       In-dictionary == 1 (formal exists in KBBI), fallback to first.
+    7. Banking extension entries override Salsabila entries on conflict
+       (more domain-relevant for banking app reviews).
+
+    Parameters
+    ----------
+    salsabila_path : str
+        Path to Salsabila CSV (e.g., 'dictionaries/salsabila.csv').
+    banking_ext_path : str, optional
+        Path to banking extension CSV (e.g., 'dictionaries/banking_extension.csv').
+    blocklist : set of str, optional
+        Set of slang keys to exclude from the final dict. If None, uses
+        the module-level INDONESIAN_PROTECTED_WORDS as the default. Pass
+        an empty set ({}) to disable blocklisting entirely.
+
+    Returns
+    -------
+    dict
+        Mapping {slang_word: formal_word} ready for token-level lookup.
+    """
+    # Use module-level default if not provided. None vs empty set distinction:
+    # None → use default protection; set() → explicitly disable blocklisting.
+    if blocklist is None:
+        blocklist = INDONESIAN_PROTECTED_WORDS
+
+    # --- Load Salsabila ---
+    df_sal = pd.read_csv(salsabila_path)
+    df_sal = df_sal[["slang", "formal", "In-dictionary"]].copy()
+
+    # Drop rows with NaN in slang or formal
+    df_sal = df_sal.dropna(subset=["slang", "formal"])
+
+    # Pre-process slang and formal columns
+    df_sal["slang"] = df_sal["slang"].astype(str).apply(normalize_text)
+    df_sal["formal"] = df_sal["formal"].astype(str).str.replace("-", " ", regex=False).apply(normalize_text)
+
+    # Drop rows where cleaning made slang or formal empty
+    df_sal = df_sal[(df_sal["slang"] != "") & (df_sal["formal"] != "")]
+
+    # Drop self-mappings (slang == formal, no normalization needed)
+    df_sal = df_sal[df_sal["slang"] != df_sal["formal"]]
+
+    # Drop "degrading mappings" — where formal is the slang word repeated.
+    # These arise as artifacts of our preprocessing: a Salsabila entry like
+    # 'baruu' → 'baru baru' becomes 'baru' → 'baru baru' after collapsing
+    # repeated chars in the slang column. This would corrupt clean text.
+    def is_degrading(row):
+        slang_word = row["slang"]
+        formal_words = row["formal"].split()
+        # Drop if formal is just slang repeated (e.g. 'baru baru', 'baru baru baru')
+        return all(w == slang_word for w in formal_words) and len(formal_words) > 1
+
+    n_before_filter = len(df_sal)
+    df_sal = df_sal[~df_sal.apply(is_degrading, axis=1)]
+    n_degrading = n_before_filter - len(df_sal)
+    if n_degrading > 0:
+        print(f"   Dropped {n_degrading} degrading reduplication mappings "
+              f"(e.g., 'baru' → 'baru baru').")
+
+    # Drop entries whose slang key is in blocklist. These protect Indonesian
+    # standard words from being mis-replaced (identified via data-driven
+    # inspection — see Bab 3 methodology section).
+    if blocklist:
+        n_before_block = len(df_sal)
+        df_sal = df_sal[~df_sal["slang"].isin(blocklist)]
+        n_blocked = n_before_block - len(df_sal)
+        if n_blocked > 0:
+            print(f"   Dropped {n_blocked} blocklisted entries (Indonesian "
+                  f"standard words protected from mis-replacement).")
+
+    # Handle duplicate keys: sort by In-dictionary descending, keep first.
+    # This prioritizes entries where formal is in KBBI (In-dictionary == 1).
+    df_sal = df_sal.sort_values("In-dictionary", ascending=False, na_position="last")
+    df_sal = df_sal.drop_duplicates(subset=["slang"], keep="first")
+
+    salsabila_dict = dict(zip(df_sal["slang"], df_sal["formal"]))
+    print(f"✅ Loaded Salsabila lexicon: {len(salsabila_dict):,} entries "
+          f"(after preprocessing & dedup).")
+
+    # --- Load banking extension (optional) ---
+    if banking_ext_path is None:
+        return salsabila_dict
+
+    df_ext = pd.read_csv(banking_ext_path)
+    df_ext = df_ext.dropna(subset=["slang", "formal"])
+
+    df_ext["slang"] = df_ext["slang"].astype(str).apply(normalize_text)
+    df_ext["formal"] = df_ext["formal"].astype(str).str.replace("-", " ", regex=False).apply(normalize_text)
+
+    df_ext = df_ext[(df_ext["slang"] != "") & (df_ext["formal"] != "")]
+    df_ext = df_ext.drop_duplicates(subset=["slang"], keep="first")
+
+    banking_dict = dict(zip(df_ext["slang"], df_ext["formal"]))
+    print(f"✅ Loaded banking extension: {len(banking_dict):,} entries.")
+
+    # Merge: banking overrides Salsabila on key conflict
+    n_overrides = len(set(banking_dict.keys()) & set(salsabila_dict.keys()))
+    merged = {**salsabila_dict, **banking_dict}
+    print(f"✅ Merged dictionary: {len(merged):,} total entries "
+          f"({n_overrides} banking entries override Salsabila).")
+
+    return merged
+
+
+def normalize_slang(text: str, slang_dict: dict) -> str:
+    """
+    Replace slang tokens with their formal equivalents. Tokenization is
+    simple whitespace split — relies on Stage 4 normalization having
+    already stripped punctuation.
+
+    Parameters
+    ----------
+    text : str
+        Cleaned review text (output of normalize_text()).
+    slang_dict : dict
+        Mapping {slang_word: formal_word}.
+
+    Returns
+    -------
+    str
+        Text with slang tokens replaced by formal forms.
+    """
+    if not text:
+        return text
+
+    tokens = text.split()
+    normalized = [slang_dict.get(token, token) for token in tokens]
+    return " ".join(normalized)
+
+
+def apply_slang_normalization(
+    df: pd.DataFrame,
+    slang_dict: dict,
+    text_col: str = "review_text_cleaned",
+    output_col: str = "review_text_cleaned",
+) -> pd.DataFrame:
+    """
+    Apply slang normalization to a DataFrame column. By default, overwrites
+    `review_text_cleaned` in-place (i.e., text now reflects both Stage 4
+    and Stage 5). Updates `word_count_after` to match.
+
+    Logs how many reviews had at least one slang replacement.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame with cleaned text in `text_col`.
+    slang_dict : dict
+        Slang→formal lookup dict from load_slang_dict().
+    text_col : str, default 'review_text_cleaned'
+        Source column with cleaned text.
+    output_col : str, default 'review_text_cleaned'
+        Destination column. Defaults to overwriting source.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with slang-normalized text.
+    """
+    df = df.copy()
+
+    original = df[text_col].copy()
+    df[output_col] = original.apply(lambda t: normalize_slang(t, slang_dict))
+
+    n_changed = (original != df[output_col]).sum()
+    df["word_count_after"] = df[output_col].str.split().str.len()
+
+    print(f"✅ Slang normalization applied to {len(df):,} reviews.")
+    print(f"   Reviews with at least one slang replacement: {n_changed:,} "
+          f"({n_changed / len(df) * 100:.1f}%).")
+    print(f"   Word count (after) — mean: {df['word_count_after'].mean():.1f}, "
+          f"median: {df['word_count_after'].median():.0f}, "
+          f"max: {df['word_count_after'].max()}")
+    return df
