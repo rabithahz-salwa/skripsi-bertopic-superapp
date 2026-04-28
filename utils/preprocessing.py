@@ -7,7 +7,9 @@ Stage 1-2: Load, filter rating 1-2, extract relative_month & relative_week.
 
 from __future__ import annotations
 
+import re
 import pandas as pd
+import emoji
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
@@ -224,3 +226,194 @@ def drop_exact_duplicates(
             print(f"     {i}. [{count}x] {preview!r}")
 
     return df_dedup
+
+
+# ==============================================================================
+# Stage 4: Text Normalization
+# ==============================================================================
+# Pre-compiled regex patterns (compiled once at import for efficiency).
+# Order of operations matters — see normalize_text() docstring.
+
+_URL_PATTERN = re.compile(
+    r'https?://\S+|www\.\S+|\b\w+\.(?:com|co\.id|id|net|org|io)\S*',
+    flags=re.IGNORECASE,
+)
+
+# ASCII emoticons: covers :) :( :D :P :v xD <3 ^_^ etc.
+# Designed to match common Indonesian-typed emoticons without being greedy.
+_EMOTICON_PATTERN = re.compile(
+    r'(?:'
+    r'[:;=8][\-o\*\']?[\)\]\(\[dDpPvV/\\:\}\{@\|]'  # :) :( :D :P :v :/ etc.
+    r'|<3'                                            # heart
+    r'|\^[_\-\.]?\^'                                  # ^_^ ^^ ^.^
+    r'|xD|XD'                                         # laughing
+    r')',
+)
+
+_NUMBER_PATTERN = re.compile(r'\d+')
+
+# Repeated chars: 3+ same chars in a row → collapse to 2.
+# Example: "errorrrr" → "errorr", "halooo" → "haloo"
+_REPEAT_PATTERN = re.compile(r'(.)\1{2,}')
+
+# Punctuation/symbols: keep only letters and whitespace.
+# This runs AFTER URL/emoji/number removal, so we don't lose info.
+_PUNCT_PATTERN = re.compile(r'[^a-z\s]')
+
+_WHITESPACE_PATTERN = re.compile(r'\s+')
+
+# Single-letter tokens left over from removing numbers/punctuation
+# (e.g., 'v1.3.1' → 'v', ':v' → 'v'). These are noise for topic modeling.
+# Matches a single letter surrounded by word boundaries.
+_SINGLE_CHAR_PATTERN = re.compile(r'\b[a-z]\b')
+
+
+def lowercase_text(text: str) -> str:
+    """Convert text to lowercase. Returns empty string for non-string input."""
+    if not isinstance(text, str):
+        return ""
+    return text.lower()
+
+
+def remove_urls(text: str) -> str:
+    """
+    Remove URLs and domain-like patterns from text.
+    Handles: http://..., https://..., www...., bri.co.id, example.com, etc.
+    """
+    return _URL_PATTERN.sub(' ', text)
+
+
+def remove_emojis(text: str) -> str:
+    """
+    Remove both Unicode emojis (via `emoji` library) and ASCII emoticons
+    (via regex). Replaces with single space to avoid word concatenation.
+    """
+    text = emoji.replace_emoji(text, replace=' ')
+    text = _EMOTICON_PATTERN.sub(' ', text)
+    return text
+
+
+def remove_numbers(text: str) -> str:
+    """Remove all digits. Standalone numbers and digits inside words both go."""
+    return _NUMBER_PATTERN.sub(' ', text)
+
+
+def collapse_repeated_chars(text: str) -> str:
+    """
+    Collapse 3+ consecutive repeated characters down to 2.
+    Conservative approach: preserves natural Indonesian double letters
+    (e.g., 'saat', 'lebih', 'maaf') while normalizing exaggerated repetition.
+
+    Examples
+    --------
+    'errorrrr' → 'errorr'
+    'halooo'   → 'haloo'
+    'saat'     → 'saat'   (unchanged)
+    """
+    return _REPEAT_PATTERN.sub(r'\1\1', text)
+
+
+def remove_punctuation(text: str) -> str:
+    """
+    Remove all characters except lowercase letters and whitespace.
+    Should be called AFTER lowercase_text(), remove_urls(), remove_emojis(),
+    and remove_numbers() — those steps need punctuation/digits to work.
+    """
+    return _PUNCT_PATTERN.sub(' ', text)
+
+
+def remove_single_chars(text: str) -> str:
+    """
+    Remove single-letter tokens left as orphans by previous cleaning steps.
+
+    Examples
+    --------
+    'v1.3.1'    after remove_numbers + remove_punctuation → 'v'    → ''
+    ':v'        after remove_punctuation                  → 'v'    → ''
+    'error 504' (numbers stripped first, no orphan)       → unchanged
+
+    Indonesian has no meaningful single-letter words, so this is safe.
+    """
+    return _SINGLE_CHAR_PATTERN.sub(' ', text)
+
+
+def normalize_whitespace(text: str) -> str:
+    """Collapse multiple spaces/tabs/newlines into a single space and strip."""
+    return _WHITESPACE_PATTERN.sub(' ', text).strip()
+
+
+def normalize_text(text: str) -> str:
+    """
+    Full text normalization pipeline (Stage 4). Applies all cleaning
+    operations in optimal order.
+
+    Pipeline order (each step's output feeds the next):
+        1. lowercase            → simplifies regex matching
+        2. remove_urls          → before punctuation strip (URLs use . and /)
+        3. remove_emojis        → before punctuation strip (emoticons use punct)
+        4. remove_numbers       → digits removed
+        5. collapse_repeated    → 'errorrrr' → 'errorr' (still has letters)
+        6. remove_punctuation   → keep only letters + whitespace
+        7. remove_single_chars  → strip orphan letters from steps 4 & 6
+        8. normalize_whitespace → single spaces, trimmed
+
+    NOTE: Stopword removal is intentionally NOT part of this pipeline.
+    BERTopic best practice: keep stopwords for IndoBERT embedding (needs
+    context), then filter them at the c-TF-IDF stage via CountVectorizer.
+
+    Parameters
+    ----------
+    text : str
+        Raw review text.
+
+    Returns
+    -------
+    str
+        Cleaned text ready for slang normalization (Stage 5).
+    """
+    text = lowercase_text(text)
+    text = remove_urls(text)
+    text = remove_emojis(text)
+    text = remove_numbers(text)
+    text = collapse_repeated_chars(text)
+    text = remove_punctuation(text)
+    text = remove_single_chars(text)
+    text = normalize_whitespace(text)
+    return text
+
+
+def apply_normalization(
+    df: pd.DataFrame,
+    text_col: str = "review_text",
+    output_col: str = "review_text_cleaned",
+) -> pd.DataFrame:
+    """
+    Apply normalize_text() to a DataFrame column. Adds two new columns:
+    `output_col` (cleaned text) and `word_count_after` (word count post-clean).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame with raw text in `text_col`.
+    text_col : str, default 'review_text'
+        Source column with raw text.
+    output_col : str, default 'review_text_cleaned'
+        Destination column for cleaned text.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with new cleaned-text and word-count columns.
+    """
+    df = df.copy()
+    df[output_col] = df[text_col].apply(normalize_text)
+    df["word_count_after"] = df[output_col].str.split().str.len()
+
+    n_empty = (df[output_col] == "").sum()
+    print(f"✅ Text normalization applied to {len(df):,} reviews.")
+    print(f"   Empty after cleaning: {n_empty:,} reviews "
+          f"(will be dropped at Stage 7 short-review filter).")
+    print(f"   Word count (after) — mean: {df['word_count_after'].mean():.1f}, "
+          f"median: {df['word_count_after'].median():.0f}, "
+          f"max: {df['word_count_after'].max()}")
+    return df
