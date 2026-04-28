@@ -638,3 +638,378 @@ def apply_slang_normalization(
           f"median: {df['word_count_after'].median():.0f}, "
           f"max: {df['word_count_after'].max()}")
     return df
+
+
+# ==============================================================================
+# Stage 6: Short Review Filter
+# ==============================================================================
+# Drops reviews with fewer than min_words tokens after Stage 4-5 normalization.
+# Placed AFTER slang normalization (Stage 5) because slang normalization can
+# expand short forms (e.g., 'mbanking' → 'mobile banking', 'cs' → 'customer
+# service'), changing word counts. Placed BEFORE language filtering (Stage 7)
+# because fasttext language detection has low accuracy on short text.
+
+def filter_short_reviews(
+    df: pd.DataFrame,
+    text_col: str = "review_text_cleaned",
+    min_words: int = 5,
+) -> pd.DataFrame:
+    """
+    Drop reviews with fewer than `min_words` tokens (whitespace-split) in
+    `text_col`. Recomputes `word_count_after` to reflect current state.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame with cleaned text in `text_col`.
+    text_col : str, default 'review_text_cleaned'
+        Column to count words from.
+    min_words : int, default 5
+        Minimum word count to keep. Reviews with < min_words are dropped.
+
+    Returns
+    -------
+    pd.DataFrame
+        Filtered DataFrame.
+    """
+    df = df.copy()
+
+    # Recompute word count to ensure accuracy (defensive — in case slang
+    # normalization changed word counts and word_count_after wasn't updated)
+    df["word_count_after"] = df[text_col].fillna("").str.split().str.len()
+
+    n_before = len(df)
+    df_kept = df[df["word_count_after"] >= min_words].copy()
+    n_after = len(df_kept)
+    n_dropped = n_before - n_after
+
+    print(f"✅ Short review filter (min_words={min_words}):")
+    print(f"   Kept {n_after:,} / {n_before:,} reviews "
+          f"(dropped {n_dropped:,} reviews with < {min_words} words).")
+    print(f"   Word count (after) — mean: {df_kept['word_count_after'].mean():.1f}, "
+          f"median: {df_kept['word_count_after'].median():.0f}, "
+          f"max: {df_kept['word_count_after'].max()}")
+
+    return df_kept
+
+
+# ==============================================================================
+# Stage 7 (DEPRECATED): Language Filtering with fasttext lid.176
+# ==============================================================================
+# DECISION: Language filter NOT used in final preprocessing pipeline.
+#
+# Rationale (data-driven decision based on audit):
+#   1. Initial audit (with Stage 6 short filter): 471 reviews flagged Tier 3
+#      (4.6%). Sample inspection showed 5/5 were valid Indonesian misclassified
+#      due to fasttext low accuracy on short text.
+#   2. After reordering (Stage 6 short filter BEFORE language filter): Tier 3
+#      dropped to 123 (1.4%) — improvement, but...
+#   3. Deeper audit of remaining 123 Tier 3:
+#        - 84% had low confidence (<0.5) → uncertain predictions
+#        - 9/10 high-confidence Tier 3 samples were FALSE POSITIVES
+#          (valid Indonesian misclassified as ms/en due to banking loanwords,
+#          typos, regional slang, and Indonesian-Malay similarity)
+#   4. Conclusion: fasttext lid.176 has systemic bias on Indonesian banking
+#      domain. False positive rate (drop valid Indonesian) > false negative
+#      rate (keep non-Indonesian).
+#
+# Since dataset is pre-filtered to rating 1-2 of Indonesian banking apps
+# (where >95% is naturally Indonesian), and BERTopic clusters non-Indonesian
+# outliers naturally, automated language filtering is omitted.
+#
+# Functions BELOW are KEPT for:
+#   - Reproducibility of the audit that led to this decision
+#   - Reference for future research on different domains
+#   - Documentation in thesis Bab 3 (methodology rationale)
+#
+# Strategy used in audit: 3-tier filtering, lenient for code-switching
+#   TIER 1 (KEEP): top_lang == 'id' AND confidence >= 0.5
+#   TIER 2 (KEEP but FLAG):
+#       Case A: top_lang == 'id' but confidence < 0.5
+#       Case B: top_lang != 'id' but 'id' in top 3 with confidence >= 0.2
+#   TIER 3 (DROP): top_lang != 'id' and 'id' not in top 3
+
+# Confidence thresholds (centralized constants for transparency)
+_TIER1_CONF_THRESHOLD = 0.5
+_TIER2B_CONF_THRESHOLD = 0.2
+_TOP_K_PREDICTIONS = 3
+
+
+def load_lang_detector(model_path: str = "lid.176.bin"):
+    """
+    Load the fasttext language identification model. This is an expensive
+    operation (~5-10 seconds for 126MB model), so call once and reuse.
+
+    Also patches a NumPy 2.x compatibility issue: fasttext-wheel 0.9.2 uses
+    the deprecated `np.array(..., copy=False)` pattern internally, which
+    raises ValueError on NumPy >= 2.0. We monkey-patch model.predict() to
+    use np.asarray() instead.
+
+    Parameters
+    ----------
+    model_path : str, default 'lid.176.bin'
+        Path to the fasttext lid.176.bin model file.
+
+    Returns
+    -------
+    fasttext._FastText
+        Loaded fasttext model with .predict() method (NumPy 2.x compatible).
+    """
+    import fasttext
+    import numpy as np
+
+    # Suppress the deprecation warning from fasttext's load_model
+    fasttext.FastText.eprint = lambda *args, **kwargs: None
+
+    model = fasttext.load_model(model_path)
+
+    # Patch for NumPy 2.x compatibility:
+    # The high-level model.predict() formats raw output via
+    #   np.array(probs, copy=False)
+    # which raises ValueError on NumPy >= 2.0. We replace it with a
+    # wrapper that uses np.asarray() instead.
+    #
+    # Note: model.f.predict() (low-level C++ binding) returns a
+    # list of (prob, label) tuples — verified empirically:
+    #   [(0.987, '__label__id'), (0.003, '__label__eu'), ...]
+    # We unpack and reformat to match the original predict() API:
+    #   (labels: tuple of str, probs: np.ndarray of float)
+    _f_predict = model.f.predict
+
+    def patched_predict(text, k=1, threshold=0.0, on_unicode_error="strict"):
+        if isinstance(text, list):
+            # Batch input
+            all_labels, all_probs = [], []
+            for t in text:
+                raw = _f_predict(t, k, threshold, on_unicode_error)
+                probs_t = np.asarray([item[0] for item in raw])
+                labels_t = tuple(item[1] for item in raw)
+                all_labels.append(labels_t)
+                all_probs.append(probs_t)
+            return all_labels, all_probs
+        else:
+            raw = _f_predict(text, k, threshold, on_unicode_error)
+            probs = np.asarray([item[0] for item in raw])
+            labels = tuple(item[1] for item in raw)
+            return labels, probs
+
+    # Replace predict on the model object
+    model.predict = patched_predict
+
+    print(f"✅ Loaded fasttext language detector from {model_path}")
+    return model
+
+
+def detect_language_tier(text: str, model) -> tuple[str, float, int]:
+    """
+    Run fasttext language detection on a single text and assign a tier
+    based on the 3-tier strategy (see module-level documentation).
+
+    Parameters
+    ----------
+    text : str
+        Cleaned review text (output of Stage 5).
+    model : fasttext._FastText
+        Loaded fasttext model from load_lang_detector().
+
+    Returns
+    -------
+    tuple of (str, float, int)
+        (top_lang, top_confidence, tier) where:
+        - top_lang: ISO 639-1 code (e.g. 'id', 'en', 'ms') without
+          the '__label__' prefix
+        - top_confidence: float in [0, 1]
+        - tier: 1 (keep, confident id), 2 (keep, flagged), or 3 (drop)
+    """
+    # Empty text: cannot detect language, treat as Tier 3 (will be dropped)
+    if not text or not text.strip():
+        return ("", 0.0, 3)
+
+    # fasttext doesn't accept newlines in input — defensive cleanup
+    text_clean = text.replace("\n", " ").strip()
+
+    # Get top K predictions
+    labels, probs = model.predict(text_clean, k=_TOP_K_PREDICTIONS)
+    # Strip '__label__' prefix from labels
+    langs = [lbl.replace("__label__", "") for lbl in labels]
+    top_lang, top_conf = langs[0], float(probs[0])
+
+    # Tier 1: confident Indonesian
+    if top_lang == "id" and top_conf >= _TIER1_CONF_THRESHOLD:
+        return (top_lang, top_conf, 1)
+
+    # Tier 2 Case A: top is Indonesian but low confidence
+    if top_lang == "id" and top_conf < _TIER1_CONF_THRESHOLD:
+        return (top_lang, top_conf, 2)
+
+    # Tier 2 Case B: top is not Indonesian, but Indonesian is in top K
+    # with sufficient confidence
+    for lang, prob in zip(langs[1:], probs[1:]):
+        if lang == "id" and float(prob) >= _TIER2B_CONF_THRESHOLD:
+            return (top_lang, top_conf, 2)
+
+    # Tier 3: clearly non-Indonesian
+    return (top_lang, top_conf, 3)
+
+
+def apply_language_detection(
+    df: pd.DataFrame,
+    model,
+    text_col: str = "review_text_cleaned",
+) -> pd.DataFrame:
+    """
+    Apply language detection to all rows in DataFrame. Adds three columns:
+    `lang_top`, `lang_top_conf`, `lang_tier`.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame with cleaned text in `text_col`.
+    model : fasttext._FastText
+        Loaded fasttext model.
+    text_col : str, default 'review_text_cleaned'
+        Source column with text for detection.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with new lang_top, lang_top_conf, lang_tier columns.
+    """
+    df = df.copy()
+
+    # Apply row-by-row. tqdm progress bar would be nice but adds complexity;
+    # 10K rows finishes in a few seconds anyway.
+    results = df[text_col].apply(lambda t: detect_language_tier(t, model))
+
+    df["lang_top"] = results.apply(lambda r: r[0])
+    df["lang_top_conf"] = results.apply(lambda r: r[1])
+    df["lang_tier"] = results.apply(lambda r: r[2])
+
+    print(f"✅ Language detection applied to {len(df):,} reviews.")
+    print(f"   Tier distribution:")
+    tier_counts = df["lang_tier"].value_counts().sort_index()
+    for tier, count in tier_counts.items():
+        pct = count / len(df) * 100
+        label = {1: "KEEP confident-id", 2: "KEEP flagged", 3: "DROP non-id"}[tier]
+        print(f"     Tier {tier} ({label}): {count:,} ({pct:.1f}%)")
+
+    # Top-5 non-id languages detected (for audit insight)
+    non_id = df[df["lang_top"] != "id"]
+    if len(non_id) > 0:
+        top_other_langs = non_id["lang_top"].value_counts().head(5)
+        print(f"   Top 5 non-Indonesian languages detected:")
+        for lang, count in top_other_langs.items():
+            print(f"     '{lang}': {count:,}")
+
+    return df
+
+
+def filter_by_language_tier(
+    df: pd.DataFrame,
+    audit_path: str | None = None,
+    keep_tiers: tuple = (1, 2),
+) -> pd.DataFrame:
+    """
+    Filter DataFrame by language tier. Tier 3 reviews are dropped, optionally
+    saved to an audit CSV for manual inspection of false negatives.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame with `lang_tier` column from apply_language_detection().
+    audit_path : str, optional
+        If provided, saves dropped (Tier 3) reviews to this CSV path.
+        Recommended: 'data/processed/wondr_tier3_dropped.csv'.
+    keep_tiers : tuple, default (1, 2)
+        Tiers to keep. Tier 3 is dropped by default.
+
+    Returns
+    -------
+    pd.DataFrame
+        Filtered DataFrame (Tier 1 + Tier 2 by default).
+    """
+    n_before = len(df)
+    df_dropped = df[~df["lang_tier"].isin(keep_tiers)].copy()
+    df_kept = df[df["lang_tier"].isin(keep_tiers)].copy()
+    n_dropped = len(df_dropped)
+
+    print(f"✅ Language tier filter (keep tiers {keep_tiers}):")
+    print(f"   Kept {len(df_kept):,} / {n_before:,} reviews "
+          f"(dropped {n_dropped:,} Tier 3).")
+
+    # Save Tier 3 audit file
+    if audit_path is not None and n_dropped > 0:
+        audit_cols = [
+            "review_id", "review_text", "review_text_cleaned",
+            "lang_top", "lang_top_conf",
+        ]
+        # Only keep columns that exist (defensive)
+        audit_cols = [c for c in audit_cols if c in df_dropped.columns]
+        df_dropped[audit_cols].to_csv(audit_path, index=False)
+        print(f"   Tier 3 reviews saved to: {audit_path}")
+
+    return df_kept
+
+
+# ==============================================================================
+# Stage 8: Save Outputs (BERTopic-ready & Full Audit)
+# ==============================================================================
+
+def save_preprocessed_outputs(
+    df: pd.DataFrame,
+    bertopic_path: str,
+    full_path: str,
+    bertopic_cols: list | None = None,
+) -> None:
+    """
+    Save final preprocessed DataFrame to two CSV files:
+
+    1. BERTopic-ready (slim) — minimal columns for topic modeling pipeline.
+       Default columns: review_id, review_text_cleaned, relative_month,
+       relative_week, date_wib, rating.
+
+    2. Full audit — all columns retained, useful for inspection and
+       validation in later analysis stages.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Final preprocessed DataFrame (output of Stage 6 short filter).
+    bertopic_path : str
+        Output path for BERTopic-ready CSV (e.g., 'data/processed/wondr_bertopic.csv').
+    full_path : str
+        Output path for full audit CSV (e.g., 'data/processed/wondr_full.csv').
+    bertopic_cols : list, optional
+        Override default column list for BERTopic version.
+
+    Returns
+    -------
+    None
+        Saves two files. Prints save confirmation and shape.
+    """
+    if bertopic_cols is None:
+        bertopic_cols = [
+            "review_id",
+            "review_text_cleaned",
+            "relative_month",
+            "relative_week",
+            "date_wib",
+            "rating",
+        ]
+
+    # Defensive: only keep columns that actually exist in the df
+    available_cols = [c for c in bertopic_cols if c in df.columns]
+    missing_cols = set(bertopic_cols) - set(available_cols)
+    if missing_cols:
+        print(f"⚠️  Missing columns in df, skipping: {missing_cols}")
+
+    # Save slim BERTopic version
+    df_bertopic = df[available_cols].copy()
+    df_bertopic.to_csv(bertopic_path, index=False)
+    print(f"✅ BERTopic-ready saved: {bertopic_path}")
+    print(f"   Shape: {df_bertopic.shape}, Columns: {list(df_bertopic.columns)}")
+
+    # Save full audit version
+    df.to_csv(full_path, index=False)
+    print(f"\n✅ Full audit saved: {full_path}")
+    print(f"   Shape: {df.shape}, Columns: {len(df.columns)} columns")
