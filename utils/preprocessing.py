@@ -156,3 +156,71 @@ def add_relative_time_columns(
           f"{df_in_window['relative_month'].value_counts().sort_index().to_dict()}")
 
     return df_in_window
+
+
+def drop_exact_duplicates(
+    df: pd.DataFrame,
+    text_col: str = "review_text",
+    show_top_n: int = 5,
+) -> pd.DataFrame:
+    """
+    Drop exact duplicate reviews based on `text_col`, keeping the first
+    (earliest) occurrence. Should be applied BEFORE text normalization
+    so that case/punctuation differences are still distinguishable.
+
+    Logs total duplicates removed and the top N most frequently
+    duplicated review texts as a sanity check (these are usually
+    boilerplate complaints, but unexpected anomalies should be inspected).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame. Should be sorted chronologically (or by relative
+        time) so that `keep='first'` retains the earliest occurrence.
+    text_col : str, default 'review_text'
+        Name of the text column to dedupe by.
+    show_top_n : int, default 5
+        Number of most-frequent duplicate texts to display in the log.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with duplicates removed.
+    """
+    df = df.copy()
+
+    # Sort by date_wib if present, so keep='first' gives earliest occurrence.
+    if "date_wib" in df.columns:
+        df = df.sort_values("date_wib").reset_index(drop=True)
+
+    n_before = len(df)
+
+    # Identify duplicates BEFORE dropping (for logging top-N)
+    dup_mask = df.duplicated(subset=[text_col], keep="first")
+    n_dropped = dup_mask.sum()
+
+    # Top-N most frequently duplicated texts
+    if n_dropped > 0:
+        top_dupes = (
+            df[df.duplicated(subset=[text_col], keep=False)]
+            .groupby(text_col)
+            .size()
+            .sort_values(ascending=False)
+            .head(show_top_n)
+        )
+
+    df_dedup = df[~dup_mask].reset_index(drop=True)
+    n_after = len(df_dedup)
+
+    print(f"✅ Exact duplicate removal (by '{text_col}', keep first):")
+    print(f"   Kept {n_after:,} / {n_before:,} reviews "
+          f"(dropped {n_dropped:,} duplicates).")
+
+    if n_dropped > 0:
+        print(f"\n   Top {show_top_n} most-duplicated review texts:")
+        for i, (text, count) in enumerate(top_dupes.items(), 1):
+            # Truncate long texts for readable log
+            preview = text if len(str(text)) <= 80 else str(text)[:77] + "..."
+            print(f"     {i}. [{count}x] {preview!r}")
+
+    return df_dedup
