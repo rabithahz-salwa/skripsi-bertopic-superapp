@@ -1,0 +1,6 @@
+﻿category,raw_count,raw_pct,weighted_pct,is_technical
+Bug Report,207,69.0,70.21,True
+User Experience,56,18.67,17.78,True
+Feature Request,16,5.33,2.86,True
+Rating (Praise/Dispraise),12,4.0,6.11,False
+Non-Technical Complaint,9,3.0,3.03,False
