@@ -1,0 +1,14 @@
+Topic,Label,Total_N,Peak_Month_Freq,Peak_Frequency,Peak_Month_Prop,Peak_Proportion,Mean_Proportion
+0,Mobile Banking comparison,536,5,159,4,0.2367,0.167
+1,Verifikasi wajah gagal,450,3,73,2,0.3158,0.1854
+2,Saldo terpotong / transaksi gagal,416,5,79,12,0.2361,0.1585
+3,Gangguan & maintenance,399,5,201,5,0.2463,0.0937
+4,Tarik tunai tanpa kartu,264,5,52,7,0.1304,0.0867
+5,Aplikasi gak bisa dibuka,193,5,96,5,0.1176,0.0538
+6,OTP / kode verifikasi email,163,3,57,3,0.2227,0.0631
+7,Error 'kendala tim perbaiki',152,5,57,10,0.0734,0.0462
+8,Password / PIN salah,118,4,20,1,0.1146,0.0509
+9,Sesi berakhir saat login,103,6,35,6,0.0794,0.028
+10,Premature launch complaint,90,5,41,5,0.0502,0.0215
+11,Permintaan perbaikan bug,72,5,24,12,0.0509,0.0224
+12,Limit top-up wallet,68,5,14,10,0.055,0.027
