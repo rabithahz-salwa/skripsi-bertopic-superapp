@@ -4,6 +4,7 @@ Visualization utilities for BERTopic DTM analysis.
 Provides plotting functions for Dynamic Topic Modeling outputs:
 - Small multiples grid (one panel per topic)
 - Proportion plot (normalized for base rate effects)
+- Proportion plot highlighted (presentation-ready, focused topics + annotations)
 
 Plus shared topic label constants for wondr and BYOND.
 """
@@ -253,6 +254,171 @@ def plot_dtm_proportion(
         bbox_to_anchor=(1.02, 1.0),
         fontsize=8,
         frameon=False,
+    )
+
+    fig.tight_layout()
+    out_path = fig_dir / filename
+    fig.savefig(out_path, dpi=dpi, bbox_inches='tight')
+    plt.close(fig)
+    return out_path
+
+
+# ============================================================
+# Plot: Proportion highlighted (presentation-ready)
+# ============================================================
+
+def plot_dtm_proportion_highlighted(
+    tot_clean: pd.DataFrame,
+    topic_labels: dict,
+    fig_dir: Path,
+    app_name: str,
+    highlight_topics: list,
+    annotations: list = None,
+    figsize: tuple = (12, 6),
+    dpi: int = 300,
+    filename: str = "08_dtm_proportion_highlighted.png",
+) -> Path:
+    """
+    Presentation-ready proportion plot with focused topic highlighting + annotations.
+
+    Selected topics rendered with full color + bold lines; non-selected topics
+    rendered as gray background context. Optional annotations (vertical lines,
+    arrow callouts) overlay key narrative events.
+
+    Parameters
+    ----------
+    tot_clean : pd.DataFrame
+        Filtered topics_over_time (outlier -1 removed).
+    topic_labels : dict
+        Mapping {topic_id: label_string}.
+    fig_dir : Path
+        Directory to save figure (created if missing).
+    app_name : str
+        For figure title.
+    highlight_topics : list[int]
+        Topic IDs to highlight with full color + bold line.
+    annotations : list[dict], optional
+        Annotation specs. Supported types:
+        - {'type': 'vline', 'x': float, 'text': str, 'text_y': float (0-1, axes coord)}
+        - {'type': 'arrow', 'text': str, 'xytext': (x, y), 'xy': (x, y)}
+        vline x is data coord; arrow xy/xytext are data coords.
+    figsize : tuple
+    dpi : int
+    filename : str
+
+    Returns
+    -------
+    Path to saved figure.
+    """
+    fig_dir = Path(fig_dir)
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
+    tot_proportion = compute_proportion(tot_clean)
+
+    topic_ids = sorted(topic_labels.keys())
+    colors = plt.cm.tab20(np.linspace(0, 1, max(len(topic_ids), 20)))
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # ---- Pass 1: render non-highlighted topics as gray background ----
+    for idx, topic_id in enumerate(topic_ids):
+        if topic_id in highlight_topics:
+            continue
+        topic_data = (
+            tot_proportion[tot_proportion['Topic'] == topic_id]
+            .sort_values('Timestamp')
+        )
+        ax.plot(
+            topic_data['Timestamp'],
+            topic_data['Proportion'],
+            marker='o',
+            markersize=3,
+            linewidth=1.0,
+            color='gray',
+            alpha=0.25,
+            zorder=1,  # behind highlighted lines
+        )
+
+    # ---- Pass 2: render highlighted topics with full color + bold ----
+    for idx, topic_id in enumerate(topic_ids):
+        if topic_id not in highlight_topics:
+            continue
+        topic_data = (
+            tot_proportion[tot_proportion['Topic'] == topic_id]
+            .sort_values('Timestamp')
+        )
+        label = topic_labels.get(topic_id, f"Topic {topic_id}")
+        ax.plot(
+            topic_data['Timestamp'],
+            topic_data['Proportion'],
+            marker='o',
+            markersize=6,
+            linewidth=2.5,
+            color=colors[idx],
+            label=f"T{topic_id}: {label}",
+            zorder=3,  # in front
+        )
+
+    # ---- Annotations (optional) ----
+    if annotations:
+        for ann in annotations:
+            if ann['type'] == 'vline':
+                ax.axvline(
+                    x=ann['x'],
+                    color='red',
+                    linestyle='--',
+                    linewidth=1.2,
+                    alpha=0.6,
+                    zorder=2,
+                )
+                if 'text' in ann:
+                    ax.text(
+                        ann['x'] + 0.1,
+                        ann.get('text_y', 0.95),
+                        ann['text'],
+                        transform=ax.get_xaxis_transform(),
+                        fontsize=9,
+                        color='red',
+                        fontweight='bold',
+                        verticalalignment='top',
+                    )
+            elif ann['type'] == 'arrow':
+                ax.annotate(
+                    ann['text'],
+                    xy=ann['xy'],
+                    xytext=ann['xytext'],
+                    fontsize=9,
+                    fontweight='bold',
+                    arrowprops=dict(
+                        arrowstyle='->',
+                        color='black',
+                        lw=1.2,
+                    ),
+                    bbox=dict(
+                        boxstyle='round,pad=0.3',
+                        facecolor='white',
+                        edgecolor='black',
+                        alpha=0.85,
+                    ),
+                )
+
+    ax.set_title(
+        f"Topic Proportion Evolution — {app_name}\n(Highlighted: key narrative topics)",
+        fontsize=12,
+        fontweight='bold',
+    )
+    ax.set_xlabel("Relative Month", fontsize=10)
+    ax.set_ylabel("Topic Proportion (% of in-cluster docs that month)", fontsize=10)
+    ax.set_xticks(range(1, 13))
+    ax.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=0))
+    ax.grid(alpha=0.3)
+    ax.legend(
+        loc='upper left',
+        bbox_to_anchor=(1.02, 1.0),
+        fontsize=9,
+        frameon=False,
+        title='Highlighted topics',
+        title_fontsize=9,
     )
 
     fig.tight_layout()
