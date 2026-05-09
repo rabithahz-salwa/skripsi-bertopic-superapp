@@ -1,0 +1,14 @@
+Topic,Label,Class_Proportion,Class_Frequency,Slope_Proportion,Slope_Frequency,p_adj_Proportion,p_adj_Frequency,Consistent
+0,Mobile Banking comparison,stable,stable,-0.00055,-0.048,0.4315,0.6808,True
+1,Verifikasi wajah gagal,stable,stable,-0.00251,-0.11,0.3422,0.1713,True
+2,Saldo terpotong / transaksi gagal,emerging,stable,0.00279,0.069,0.0014,0.0848,False
+3,Gangguan & maintenance,emerging,stable,0.00192,0.054,0.0014,0.0848,False
+4,Tarik tunai tanpa kartu,stable,stable,-0.00105,-0.028,0.0551,0.6158,True
+5,Aplikasi gak bisa dibuka,emerging,stable,0.00084,0.023,0.0285,0.143,False
+6,OTP / kode verifikasi email,stable,stable,-0.00103,-0.022,0.0551,0.1713,True
+7,Error 'kendala tim perbaiki',emerging,stable,0.00111,0.029,0.0014,0.143,False
+8,Password / PIN salah,stable,stable,-0.00032,0.0,0.3422,0.1713,True
+9,Sesi berakhir saat login,stable,stable,0.0,0.0,0.6022,0.8017,True
+10,Premature launch complaint,stable,stable,0.0,0.0,0.4315,0.4467,True
+11,Permintaan perbaikan bug,stable,declining,2e-05,0.0,0.0551,0.0003,False
+12,Limit top-up wallet,emerging,stable,0.00058,0.0,0.0014,0.2675,False
