@@ -1,0 +1,14 @@
+Topic,Label,D1_mean,D2_mean,Pattern,D1_outlier_months,D2_outlier_months
+0,Mobile Banking comparison,0.9758,0.6061,Stable,[],"[(10, 0.2909)]"
+1,Verifikasi wajah gagal,0.9811,0.8333,Stable,[],"[(10, 0.6)]"
+2,Saldo terpotong / transaksi gagal,0.9817,0.6364,Stable,[],"[(1, 0.4), (4, 0.4727)]"
+3,Gangguan & maintenance,0.9251,0.3182,Topic drift,"[(1, 0.8523)]","[(1, 0.0), (2, 0.0), (4, 0.1636)]"
+4,Tarik tunai tanpa kartu,0.9612,0.8485,Stable,[],"[(9, 0.6545)]"
+5,Aplikasi gak bisa dibuka,0.9195,0.1758,Topic drift,"[(2, 0.8069)]","[(1, 0.0), (3, 0.0), (8, 0.0)]"
+6,OTP / kode verifikasi email,0.9263,0.8606,Lexical-anchor drift (rare),"[(11, 0.8716)]","[(11, 0.6)]"
+7,Error 'kendala tim perbaiki',0.9482,0.197,Topic drift,[],"[(3, 0.0)]"
+8,Password / PIN salah,0.9589,0.4424,"Paraphrase (semantic stable, lexical drift)",[],"[(5, 0.2909), (9, 0.2545), (10, 0.2909)]"
+9,Sesi berakhir saat login,0.8575,0.1515,Topic drift,"[(2, 0.7996), (3, 0.7947), (10, 0.7374)]","[(1, 0.0), (2, 0.0), (3, 0.0), (10, 0.0), (11, 0.0)]"
+10,Premature launch complaint,0.8351,0.2655,Topic drift,"[(9, 0.7705), (11, 0.6993)]","[(9, 0.0), (12, 0.0)]"
+11,Permintaan perbaikan bug,0.8488,0.0939,Topic drift,"[(2, 0.7559), (3, 0.7142)]",[]
+12,Limit top-up wallet,0.8323,0.3745,Topic drift,"[(1, 0.6958), (2, 0.7698), (3, 0.7749)]","[(1, 0.0), (2, 0.0), (3, 0.0)]"
