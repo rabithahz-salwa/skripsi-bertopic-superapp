@@ -5,9 +5,9 @@ Topic,Label,D1_mean,D2_mean,Pattern,Pattern_threshold_old,D1_outlier_months,D2_o
 3,Gangguan & maintenance,0.9251,0.3182,Paraphrase,Topic drift,"[(1, 0.8523)]","[(1, 0.0), (2, 0.0), (4, 0.1636)]"
 4,Tarik tunai tanpa kartu,0.9612,0.8485,Stable,Stable,[],"[(9, 0.6545)]"
 5,Aplikasi gak bisa dibuka,0.9195,0.1758,Paraphrase,Topic drift,"[(2, 0.8069)]","[(1, 0.0), (3, 0.0), (8, 0.0)]"
-6,OTP / kode verifikasi email,0.9263,0.8606,Stable,Lexical-anchor drift (rare),"[(11, 0.8716)]","[(11, 0.6)]"
+6,OTP / kode verifikasi email,0.9263,0.8606,Stable,Lexical-anchor drift,"[(11, 0.8716)]","[(11, 0.6)]"
 7,Error 'kendala tim perbaiki',0.9482,0.197,Paraphrase,Topic drift,[],"[(3, 0.0)]"
-8,Password / PIN salah,0.9589,0.4424,Paraphrase,"Paraphrase (semantic stable, lexical drift)",[],"[(5, 0.2909), (9, 0.2545), (10, 0.2909)]"
+8,Password / PIN salah,0.9589,0.4424,Paraphrase,Paraphrase,[],"[(5, 0.2909), (9, 0.2545), (10, 0.2909)]"
 9,Sesi berakhir saat login,0.8575,0.1515,Topic drift,Topic drift,"[(2, 0.7996), (3, 0.7947), (10, 0.7374)]","[(1, 0.0), (2, 0.0), (3, 0.0), (10, 0.0), (11, 0.0)]"
 10,Premature launch complaint,0.8351,0.2655,Topic drift,Topic drift,"[(9, 0.7705), (11, 0.6993)]","[(9, 0.0), (12, 0.0)]"
 11,Permintaan perbaikan bug,0.8488,0.0939,Topic drift,Topic drift,"[(2, 0.7559), (3, 0.7142)]",[]
