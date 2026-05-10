@@ -1,0 +1,15 @@
+Topic,Label,N_docs,Freq_Sen_slope,Freq_p_adj,Freq_Class,Prop_Sen_slope,Prop_p_adj,Prop_Class,Prop_pp_per_year,Practical_Significance,Divergence
+1,Gangguan & maintenance,2753,0.179,0.3918,stable,0.004038,0.0019,emerging,21.0,meaningful,persistent_share
+0,Saldo & transaksi gagal,3098,-0.2273,0.5983,stable,0.002467,0.0001,emerging,12.83,meaningful,persistent_share
+2,Permohonan perbaikan,1236,0.0,0.8838,stable,0.001134,0.0016,emerging,5.9,meaningful,persistent_share
+10,Sentimen ekstrem negatif,110,0.0,0.3955,stable,0.000195,0.0118,emerging,1.01,small,persistent_share
+11,Login pasca update,75,0.0,0.5983,stable,6.4e-05,0.0006,emerging,0.33,negligible,persistent_share
+6,Update memperburuk,175,0.0,0.5983,stable,0.0,0.5219,stable,0.0,negligible,consistent
+9,Maintenance malam hari,121,0.0,0.3298,stable,0.0,0.1083,stable,0.0,negligible,consistent
+12,Aplikasi tidak bisa dibuka,64,0.0,0.5124,stable,0.0,0.5219,stable,0.0,negligible,consistent
+13,Loading meski sinyal bagus,63,0.0,0.4065,stable,0.0,0.1083,stable,0.0,negligible,consistent
+7,Bukti transfer/resi,145,-0.0645,0.0066,declining,-0.000456,0.0062,declining,-2.37,meaningful,consistent
+3,Aplikasi lemot,790,-0.186,0.077,stable,-0.00065,0.209,stable,-3.38,meaningful,consistent
+8,Blokir developer mode,139,-0.0909,0.0066,declining,-0.000654,0.0294,declining,-3.4,meaningful,consistent
+4,Verifikasi wajah gagal,659,-0.3141,0.0047,declining,-0.002001,0.0,declining,-10.41,meaningful,consistent
+5,Pop-up overlapping,490,-0.2857,0.0055,declining,-0.002079,0.0,declining,-10.81,meaningful,consistent
