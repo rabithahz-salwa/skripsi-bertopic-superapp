@@ -48,9 +48,26 @@ CUSTOM_DOMAIN_STOPWORDS = {
         "ya",         # particle
     ],
     'byond': [
-        # Empty placeholder. Populate after Phase A inspection di notebook 06
-        # Section 6.2-6.3. Likely candidates: 'bsi', 'byond', 'aplikasi',
-        # plus discourse markers (probably similar to wondr Tier 2).
+        # Tier 1: Brand & generic app terms (populated v1 Phase B notebook 06)
+        "byond",      # brand name app
+        "bsi",        # brand name bank
+        "aplikasi",   # generic, dominant di T0/T1/T2/T3/T8/T10/T11/T13
+        "bank",       # generic banking term, di T0/T10
+        # Tier 2: Discourse markers & filler words
+        "banget",     # intensifier (T1, T7)
+        "mending",    # comparison marker (T3)
+        "lebih",      # comparative marker (T0, T3)
+        "malah",      # discourse marker (T0, T6)
+        "kalau",      # conditional marker (T9)
+        "kalo",       # informal variant
+        "dulu",       # temporal marker (T3)
+        "dong",       # particle informal (T2, T7, T8)
+        # Tier 2 preventive (kandidat dari wondr pattern, common informal Indonesian)
+        "deh",
+        "sih",
+        "ya",
+        "kok",
+        "nya",
     ],
 }
 

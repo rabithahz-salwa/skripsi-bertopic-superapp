@@ -37,8 +37,22 @@ TOPIC_LABELS_WONDR = {
     12: "Limit top-up wallet",
 }
 
-# Placeholder — akan diisi setelah BERTopic fit di notebook 06
-TOPIC_LABELS_BYOND = {}
+TOPIC_LABELS_BYOND = {
+    0:  "Saldo terpotong / transaksi gagal",
+    1:  "Gangguan & error chronic",
+    2:  "Permintaan perbaikan",
+    3:  "BSI Mobile vs BYOND comparison",
+    4:  "Verifikasi wajah gagal",
+    5:  "Overlapping popups bug",
+    6:  "Sarcasm post-update",
+    7:  "Bukti transfer / resi sharing fail",
+    8:  "Developer mode restriction",
+    9:  "Maintenance jam sibuk",
+    10: "Sentiment ekstrem: MB terburuk",
+    11: "First-launch install issue",
+    12: "Aplikasi gak bisa dibuka chronic",
+    13: "Loading lambat (network OK)",
+}
 
 
 # ============================================================
