@@ -1,0 +1,15 @@
+,Topic_Label,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12
+T0,Saldo terpotong / transaksi gagal,69,407,370,803,155,96,191,139,194,371,178,125
+T1,Gangguan & error chronic,29,84,192,1123,112,60,160,146,174,488,110,75
+T2,Permintaan perbaikan,24,80,97,486,60,33,58,55,68,179,49,47
+T3,BSI Mobile vs BYOND comparison,15,73,87,324,50,20,56,29,41,67,14,14
+T4,Verifikasi wajah gagal,63,145,104,70,49,42,29,41,19,29,36,32
+T5,Overlapping popups bug,10,247,96,51,29,19,10,10,8,4,6,0
+T6,Sarcasm post-update,1,10,20,78,6,7,9,4,10,19,7,4
+T7,Bukti transfer / resi sharing fail,22,88,18,5,5,2,1,1,1,2,0,0
+T8,Developer mode restriction,24,54,15,12,6,4,2,6,6,5,2,3
+T9,Maintenance jam sibuk,0,0,3,44,3,1,15,4,13,34,3,1
+T10,Sentiment ekstrem: MB terburuk,0,3,7,36,3,1,13,3,15,21,6,2
+T11,First-launch install issue,3,12,4,12,2,2,4,11,4,9,9,3
+T12,Aplikasi gak bisa dibuka chronic,1,1,3,21,2,6,4,4,4,11,3,4
+T13,Loading lambat (network OK),1,1,10,18,3,1,5,5,3,13,1,2

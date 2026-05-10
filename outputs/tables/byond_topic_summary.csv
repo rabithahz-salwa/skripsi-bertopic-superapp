@@ -1,0 +1,15 @@
+Topic,Topic_Label,Total_N,Peak_Month,Peak_Frequency,Avg_Per_Month
+T0,Saldo terpotong / transaksi gagal,3098,4,803,258.17
+T1,Gangguan & error chronic,2753,4,1123,229.42
+T2,Permintaan perbaikan,1236,4,486,103.0
+T3,BSI Mobile vs BYOND comparison,790,4,324,65.83
+T4,Verifikasi wajah gagal,659,2,145,54.92
+T5,Overlapping popups bug,490,2,247,40.83
+T6,Sarcasm post-update,175,4,78,14.58
+T7,Bukti transfer / resi sharing fail,145,2,88,12.08
+T8,Developer mode restriction,139,2,54,11.58
+T9,Maintenance jam sibuk,121,4,44,10.08
+T10,Sentiment ekstrem: MB terburuk,110,4,36,9.17
+T11,First-launch install issue,75,2,12,6.25
+T12,Aplikasi gak bisa dibuka chronic,64,4,21,5.33
+T13,Loading lambat (network OK),63,4,18,5.25
