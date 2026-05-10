@@ -1,0 +1,15 @@
+Topic,Topic_Label,D1_mean,D2_mean
+T0,Saldo terpotong / transaksi gagal,0.9886,0.5394
+T1,Gangguan & error chronic,0.9875,0.5303
+T2,Permintaan perbaikan,0.9882,0.9091
+T3,BSI Mobile vs BYOND comparison,0.9798,0.5212
+T4,Verifikasi wajah gagal,0.9845,0.7485
+T5,Overlapping popups bug,0.9002,0.7891
+T6,Sarcasm post-update,0.8973,0.3939
+T7,Bukti transfer / resi sharing fail,0.8241,0.2089
+T8,Developer mode restriction,0.9103,0.5152
+T9,Maintenance jam sibuk,0.8698,0.4178
+T10,Sentiment ekstrem: MB terburuk,0.848,0.3527
+T11,First-launch install issue,0.9212,0.0212
+T12,Aplikasi gak bisa dibuka chronic,0.8284,0.0636
+T13,Loading lambat (network OK),0.861,0.0727
